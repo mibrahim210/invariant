@@ -33,7 +33,7 @@ import analyzers.inspect_split as _inspect_split_mod
 import analyzers.coverage as _coverage_mod
 import analyzers.verify_overlap as _verify_overlap_mod
 import analyzers.run_tests as _run_tests_mod
-from proc import log, run_cmd
+from proc import log, run_bytes, run_cmd
 from report.status import derive_status, required_checks
 
 # ── paths ─────────────────────────────────────────────────────────────────────
@@ -73,11 +73,12 @@ def _dirty_paths(repo: Path) -> list[str]:
 
 
 def _blob_sha256(repo: Path, head_sha: str, rel_path: str) -> str | None:
-    """SHA-256 of the committed blob at head_sha:<rel_path>; None if absent."""
+    """SHA-256 of the committed blob's exact bytes at head_sha:<rel_path>; None if absent.
+    Bytes, not decoded text: the protocol is a PDF, and hashes must match sha256sum."""
     try:
-        content = run_cmd(["git", "-C", str(repo), "cat-file", "blob",
-                           f"{head_sha}:{rel_path}"])
-        return hashlib.sha256(content.encode("utf-8", errors="surrogateescape")).hexdigest()
+        content = run_bytes(["git", "-C", str(repo), "cat-file", "blob",
+                             f"{head_sha}:{rel_path}"])
+        return hashlib.sha256(content).hexdigest()
     except Exception:
         return None
 
@@ -85,7 +86,12 @@ def _blob_sha256(repo: Path, head_sha: str, rel_path: str) -> str | None:
 def _resolve_base(repo: Path, cfg: dict, expected_base: str | None) -> tuple[str | None, str]:
     """Return (base_sha, source). Source is 'invariant.toml', 'cli', or 'unresolvable'."""
     if expected_base:
-        return expected_base, "cli"
+        # Trusted CI input, but it must name a commit that exists in this repository.
+        try:
+            sha = _git(repo, "rev-parse", "--verify", f"{expected_base}^{{commit}}")
+            return sha, "cli"
+        except Exception:
+            return None, "unresolvable"
     base_ref = cfg.get("review", {}).get("base_ref", "")
     if not base_ref:
         return None, "unresolvable"
@@ -208,14 +214,40 @@ _DEFAULT_RUNNERS: dict[str, Callable[[Path], dict]] = {
 
 # ── schema validation ─────────────────────────────────────────────────────────
 
+# Required fields and allowed states per analyzer (S17: anything else -> review_required).
+_REQUIRED_KEYS: dict[str, dict[str, type]] = {
+    "inspect_split": {"calls": list, "group_aware": bool, "risk_indicators": list},
+    "verify_split_overlap": {"state": str},
+    "find_invariant_tests": {"state": str, "evidence": list},
+    "regression_tests": {"state": str},
+}
+_ALLOWED_STATES: dict[str, set[str]] = {
+    "verify_split_overlap": {"valid", "invalid_partition", "error"},
+    "find_invariant_tests": {"recognized_guard", "no_recognized_guard", "unknown"},
+    "regression_tests": {"passed", "failed", "no_tests", "collection_error", "crash"},
+}
+
+
 def _validate_check_result(check_name: str, result: dict) -> bool:
-    """Light structural check: must be a dict with known keys. Returns True if valid."""
+    """Structural check of one analyzer result. Returns True if valid."""
     if not isinstance(result, dict):
         return False
-    # Minimal: must have 'state' key (all our analyzers return one)
     if "error" in result:
-        return True  # error dicts are valid schema-wise; status treats them as review_req
-    return "state" in result
+        return True  # error dicts are valid schema-wise; status treats them as review_required
+    required = _REQUIRED_KEYS.get(check_name)
+    if required is None:
+        return "state" in result
+    for key, typ in required.items():
+        if not isinstance(result.get(key), typ):
+            return False
+    allowed = _ALLOWED_STATES.get(check_name)
+    if allowed is not None and result["state"] not in allowed:
+        return False
+    # A valid partition must carry an integer patient overlap; an invalid one carries None.
+    if check_name == "verify_split_overlap" and result["state"] == "valid":
+        if not isinstance(result.get("overlap_count"), int):
+            return False
+    return True
 
 
 # ── Markdown rendering ────────────────────────────────────────────────────────
@@ -262,6 +294,10 @@ def _render_md(report: dict) -> str:
         "",
         f"- confirmed_affected runs: {report['history']['confirmed_count']}",
         f"- potentially_affected runs: {report['history']['potentially_count']}",
+        f"- CPU time on confirmed runs (s): {report['history']['cpu_time_seconds']}",
+        f"- wall time on confirmed runs (s): {report['history']['wall_time_seconds']}",
+        f"- timing boundary: {report['history']['timing_boundary_values']}",
+        "- History is informational and does not affect status.",
         "",
         "## Reviewer explanation (Bob, not evidence)",
         "",
@@ -277,10 +313,12 @@ def _render_md(report: dict) -> str:
 # ── invariants ────────────────────────────────────────────────────────────────
 
 def _collect_invariants(cfg: dict, check_names: list[str]) -> dict:
+    """W6: each invariant's scope exactly as declared in [invariants] of invariant.toml."""
     invariants_cfg = cfg.get("invariants", {})
     result: dict = {}
-    for name, _info in invariants_cfg.items():
-        result[name] = {"status": "checked" if name in check_names else "not_checked"}
+    for name, declared in invariants_cfg.items():
+        status = declared if declared in ("checked", "not_checked") else "not_checked"
+        result[name] = {"status": status}
     return result
 
 
@@ -369,9 +407,11 @@ def build(
     # ── compute input hashes (committed blobs) ────────────────────────────────
     # Also include metadata path from toml if present.
     hash_paths = list(_HASH_PATHS)
-    meta = cfg.get("target", {}).get("metadata") or cfg.get("metadata")
-    if meta and meta not in hash_paths:
-        hash_paths.append(meta)
+    tcfg = cfg.get("target", {})
+    for extra in (tcfg.get("protocol") or cfg.get("protocol"),
+                  tcfg.get("metadata") or cfg.get("metadata")):
+        if extra and extra not in hash_paths:
+            hash_paths.append(extra)
 
     hashes_before: dict[str, str | None] = {
         p: _blob_sha256(target, head_sha, p) for p in hash_paths
@@ -502,13 +542,17 @@ def build_report(explanation_md: str, remediation_md: str) -> dict:
     """MCP tool entry point. Only explanation_md and remediation_md accepted (R6)."""
     if _bound_target is None:
         return {"error": "builder not bound to a target; call bind() first"}
-    return build(
-        _bound_target,
-        explanation_md,
-        remediation_md,
-        reports_root=_bound_reports_root,
-        analyzer_root=_bound_analyzer_root,
-    )
+    try:
+        return build(
+            _bound_target,
+            explanation_md,
+            remediation_md,
+            reports_root=_bound_reports_root,
+            analyzer_root=_bound_analyzer_root,
+        )
+    except RefusalError as exc:
+        # A refusal is an answer, not a crash: no report is written.
+        return {"status": "refused", "reason": str(exc)[:500]}
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────

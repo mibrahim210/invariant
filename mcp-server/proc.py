@@ -55,3 +55,17 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int = DEFAULT_TIME
     if result.returncode != 0:
         raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
     return result.stdout
+
+
+def run_bytes(cmd: list[str], cwd: Path | None = None, timeout: int = DEFAULT_TIMEOUT_S) -> bytes:
+    """Run a command that must succeed; return raw stdout bytes (for hashing file content)."""
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    start = time.monotonic()
+    log(f"run start (bytes): {cmd[:4]}")
+    result = subprocess.run(cmd, cwd=cwd, env=_env(), stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            timeout=timeout, creationflags=flags)
+    log(f"run exit {result.returncode} {time.monotonic() - start:.2f}s")
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
+    return result.stdout

@@ -66,20 +66,39 @@ def make_analyzer(path: Path) -> Path:
 
 
 def _clean_runners(status: str = "no_findings") -> dict[str, Callable]:
-    """Stub runners that return results producing the requested status."""
+    """Stub runners returning the analyzers' real output shapes for the requested status."""
     overlap_count = 0
     reg_state = "passed"
     guard_state = "recognized_guard"
-    risk = []
+    guard_evidence = ["tests/test_split_invariants.py:15"]
+    risk: list[str] = []
     if status == "blocked":
         overlap_count = 1
     elif status == "review_required":
         guard_state = "no_recognized_guard"
+        guard_evidence = []
     return {
-        "verify_split_overlap": lambda _: {"state": "valid", "overlap_count": overlap_count, "overlap_examples": []},
-        "regression_tests":     lambda _: {"state": reg_state, "passed": 3, "failed": 0, "collected": 3},
-        "find_invariant_tests": lambda _: {"state": guard_state},
-        "inspect_split":        lambda _: {"state": "ok", "risk_indicators": risk},
+        "verify_split_overlap": lambda _: {
+            "state": "valid", "partition_errors": [], "overlap_count": overlap_count,
+            "overlap_examples": ["G1"] if overlap_count else [],
+            "train_group_count": 1, "test_group_count": 1, "rows_partitioned": 2, "split_seed": 0,
+        },
+        "regression_tests": lambda _: {
+            "state": reg_state, "passed": 3, "failed": 0, "errors": 0, "skipped": 0, "collected": 3,
+        },
+        "find_invariant_tests": lambda _: {
+            "state": guard_state, "evidence": guard_evidence,
+            "split_function": "demo.splits:make_split", "group_key": "patient_id",
+            "test_files_scanned": 1,
+        },
+        "inspect_split": lambda _: {
+            "file": "demo/splits.py", "split_function": "demo.splits:make_split",
+            "group_key": "patient_id", "function_line": 4,
+            "calls": [{"line": 5, "call": "GroupShuffleSplit"},
+                      {"line": 6, "call": "split", "groups": "patient_id"}],
+            "group_aware": True, "stratify_col": None,
+            "identity_columns": ["row_id", "patient_id"], "risk_indicators": risk,
+        },
     }
 
 
