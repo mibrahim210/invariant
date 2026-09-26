@@ -80,7 +80,7 @@ def write_mcp_json(target: Path, uv: str) -> Path:
         "command": uv,
         "args": ["run", "--locked", "--directory", str(SERVER_DIR), "python", "server.py",
                  "--target-repo", str(target)],
-        "timeout": 120,
+        "timeout": 600,
         "alwaysAllow": AUTO_APPROVED,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
