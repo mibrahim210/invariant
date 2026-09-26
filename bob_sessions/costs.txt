@@ -1,0 +1,14 @@
+task01 attempt1 0.044 hello timeout
+task01 attempt2 0.044 approval wait exceeded timeout
+task01 attempt3 0.045 hello successful
+
+task02 static_analyzers 2.30
+task03 execution_analyzers 4.56
+task04 report_builder 7.32
+
+task05 attempt1 0.611 verify_split_overlap and build_report timed out after ~31s; no Report A
+task05 review_report_a 0.509
+task05 fix_review_report_a_error 0.843
+task05 fix_review_report_a_error 0.901
+task05 Create PR workflow failed twice ("Failed to load repository data"); Bob opened the PR via gh pr create. 1.02
+task06 fix_pr_report_b_summary 1.32
