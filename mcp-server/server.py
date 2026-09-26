@@ -23,6 +23,7 @@ import analyzers.inspect_split as _inspect_split
 import analyzers.coverage as _coverage
 import analyzers.verify_overlap as _verify_overlap
 import analyzers.run_tests as _run_tests
+import report.builder as _builder
 
 SERVER_VERSION = "0.1.0"
 ANALYZER_ROOT = Path(__file__).resolve().parents[1]  # the invariant repository
@@ -85,6 +86,7 @@ def hello_payload(target: Path) -> dict:
 
 def build_server(target: Path) -> FastMCP:
     mcp = FastMCP("invariant")
+    _builder.bind(target)
 
     @mcp.tool()
     def hello() -> dict:
@@ -138,7 +140,25 @@ def build_server(target: Path) -> FastMCP:
         log("run_required_tests returning")
         return result
 
-    # Task 5: build_report. Receives `target` from this closure.
+    @mcp.tool()
+    def build_report(explanation_md: str, remediation_md: str) -> dict:
+        """Build a Validity Report for the bound target. Computes all SHAs, hashes,
+        check results and status. Accepts only explanation_md and remediation_md from
+        the caller; everything else is derived from the target and the analyzer.
+        Returns compact summary (< 2 KB): status, head_sha, run_id, report path,
+        per-check summaries. Raises if the target or analyzer tree is dirty."""
+        log("build_report called")
+        try:
+            result = _builder.build(
+                target,
+                explanation_md,
+                remediation_md,
+            )
+        except _builder.RefusalError as exc:
+            return {"error": f"refused: {exc}"}
+        log("build_report returning")
+        return result
+
     return mcp
 
 
