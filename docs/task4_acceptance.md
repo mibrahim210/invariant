@@ -13,9 +13,10 @@ SHA, hash, check result or path. Everything else is computed:
 - target binding from `--target-repo`; `invariant.toml` from the target;
 - `head_sha` from the target's HEAD; `base_sha` from `[review] base_ref` in `invariant.toml`
   (locally) or from trusted CI inputs `--expected-head` / `--expected-base`;
-- SHA-256 of protocol, metadata, `invariant.toml`, `configs/data_generation.json`,
-  `data/image_manifest.json`; analyzer commit SHA;
-- results of every check in `[checks] required`, run by the builder itself.
+- - SHA-256 of protocol, metadata, `invariant.toml`, `configs/data_generation.json`,
+  `data/image_manifest.json`, computed over the committed blob at `head_sha`
+  (`git cat-file blob <head_sha>:<path>`), never the working-tree file, so a Windows CRLF
+  checkout and CI produce identical hashes; analyzer commit SHA;
 
 The CI entry point is `python -m report.builder --target-repo ... [--expected-head SHA --expected-base SHA]`
 and calls the same code.
