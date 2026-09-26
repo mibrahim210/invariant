@@ -11,9 +11,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -27,14 +30,37 @@ class BindingError(RuntimeError):
 
 
 SUBPROCESS_TIMEOUT_S = 30
+LOG_PATH = Path(os.environ.get("INVARIANT_MCP_LOG", Path(tempfile.gettempdir()) / "invariant-mcp.log"))
+
+
+def log(msg: str) -> None:
+    """Diagnostics go to a file outside both repositories; never to stdout (the MCP pipe)."""
+    try:
+        with open(LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%H:%M:%S')} pid={os.getpid()} {msg}\n")
+    except OSError:
+        pass
+
+
+def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int = SUBPROCESS_TIMEOUT_S) -> str:
+    """Every subprocess goes through here: no inherited stdin, no console window, no prompts."""
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GIT_OPTIONAL_LOCKS="0")
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    start = time.monotonic()
+    log(f"run start: {cmd[:4]}")
+    try:
+        out = subprocess.run(cmd, cwd=cwd, env=env, text=True, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             timeout=timeout, creationflags=flags, check=True).stdout
+        log(f"run ok {time.monotonic() - start:.2f}s")
+        return out
+    except Exception as exc:
+        log(f"run failed {time.monotonic() - start:.2f}s: {type(exc).__name__}")
+        raise
 
 
 def _git(repo: Path, *args: str) -> str:
-    # stdin=DEVNULL is required: under the stdio transport the server's stdin is the MCP
-    # pipe, and a child that inherits it can block forever (observed on Windows).
-    return subprocess.check_output(["git", "-C", str(repo), *args], text=True,
-                                   stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                   timeout=SUBPROCESS_TIMEOUT_S).strip()
+    return run_cmd(["git", "-C", str(repo), *args]).strip()
 
 
 def _sha256(path: Path) -> str:
@@ -92,7 +118,10 @@ def build_server(target: Path) -> FastMCP:
     def hello() -> dict:
         """Smoke test: report the bound target repository, its HEAD and cleanliness,
         and the analyzer checkout. Reads nothing else and changes nothing."""
-        return hello_payload(target)
+        log("hello called")
+        payload = hello_payload(target)
+        log("hello returning")
+        return payload
 
     # Tasks 2-4 register: inspect_split, verify_split_overlap, find_invariant_tests,
     # run_required_tests, build_report. Each receives `target` from this closure.
@@ -108,11 +137,13 @@ def main() -> None:
     try:
         target = bind_target(args.target_repo)
     except BindingError as exc:
+        log(f"binding failed: {exc}")
         print(f"invariant: binding failed: {exc}", file=sys.stderr)
         sys.exit(2)
     if args.self_test:
         print(json.dumps(hello_payload(target), indent=2))
         return
+    log(f"server start: python={platform.python_version()} target={target} log={LOG_PATH}")
     build_server(target).run()  # stdio transport
 
 
