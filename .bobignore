@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.pytest_cache/
+uv.lock
+mcp-server/uv.lock
+reports/
+comparisons/
+bob_sessions/
+viewer/node_modules/
+.env

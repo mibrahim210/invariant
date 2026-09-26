@@ -1,0 +1,17 @@
+[project]
+name = "invariant-mcp-server"
+version = "0.1.0"
+description = "Invariant: MCP analyzers and deterministic Validity Report builder"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "mcp>=1.10,<2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
