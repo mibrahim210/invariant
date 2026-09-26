@@ -111,17 +111,33 @@ Implement mcp-server/report/status.py, builder.py and schema.json and the MCP to
 @docs/task4_acceptance.md is a passing test (S*, P* in test_status_table.py; R*, W*, H* in
 test_builder.py using temporary git repositories and stubbed check results).
 Follow @AGENTS.md. The builder computes all SHAs, hashes, check results and status; the
-caller supplies text only. Do not change a row's expected outcome; report conflicts.
+caller supplies text only. Never change a test's expected result to make it pass; fix the
+code or report the conflict.
 
-The builder calls the analyzers in-process through an injectable mapping of check runners
-(tests pass stubs). It takes reports_root and analyzer_root parameters, defaulting to
-<invariant>/reports and <invariant>; tests always use temporary directories and never
-write into the repository.
+Checks: the builder calls the existing analyzers in-process through an injectable mapping
+of check runners (tests pass stubs): inspect_split -> analyzers.inspect_split.run(target),
+verify_split_overlap -> analyzers.verify_overlap.run(target), find_invariant_tests ->
+analyzers.coverage.run(target), regression_tests -> analyzers.run_tests.run(target).
+Status mapping (derive from each result's `state`, never from overlap_count alone):
+- verify_split_overlap: invalid_partition -> blocked; valid with overlap_count > 0 ->
+  blocked; valid with overlap_count == 0 -> none; error or anything else -> review_required.
+- regression_tests: failed -> blocked; passed with collected > 0 -> none; no_tests,
+  collection_error, crash -> review_required.
+- find_invariant_tests: recognized_guard -> none; no_recognized_guard, unknown ->
+  review_required.
+- inspect_split: any risk_indicators while overlap_count == 0 -> review_required.
+- a missing result, an "error" key, or a schema failure -> review_required.
 
-Also add the CLI `python -m report.builder --target-repo PATH [--expected-head SHA
---expected-base SHA]`: print the compact summary; exit 0 on no_findings, 1 on blocked or
-review_required, 2 on refusal. Run `uv run --locked pytest -q` in mcp-server.
-Final message <= 10 lines.
+Bindings: git runs only through proc.run_cmd. Hash inputs from committed blobs
+(`git cat-file blob <head_sha>:<path>`). Target dirty (git status --porcelain, untracked
+included) -> refuse. Analyzer dirty outside reports/ and comparisons/ -> refuse.
+The builder takes reports_root and analyzer_root parameters, defaulting to
+<invariant>/reports and <invariant>; tests always use temporary directories.
+
+CLI: `python -m report.builder --target-repo PATH [--reports-root PATH]
+[--expected-head SHA --expected-base SHA]`; print the compact summary; exit 0 on
+no_findings, 1 on blocked or review_required, 2 on refusal.
+Run `uv run --locked pytest -q` in mcp-server. Final message <= 10 lines.
 ```
 
 ## Task 5 - measured review, Report A, fix (demo repo workspace, ML Reviewer mode)

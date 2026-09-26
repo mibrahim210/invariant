@@ -158,7 +158,7 @@ def run(target: Path) -> dict:
             "passed": 0, "failed": 0, "errors": 0, "skipped": 0, "collected": 0,
         }
 
-        # Determine state from exit code and counts.
+    # Determine state from exit code and counts.
     # pytest exit codes: 0 all passed, 1 some tests failed, 2 interrupted (including
     # collection errors such as an import error), 3 internal error, 4 usage error.
     if exit_code == 0:
