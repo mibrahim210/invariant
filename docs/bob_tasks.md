@@ -33,7 +33,7 @@ costs are in `bob_sessions/` (see `docs/bob_evidence_capture_guide.md`).
 | 6 Fix PR, Report B | invariant-demo-nsclc | Agent | 2 | 0.811 (same chat as Task 5 attempt 2; chat total 1.32) |
 | **Total** | | | **23** | **9.52 of 40 (account usage)** |
 
-The total is the account usage figure (screenshot: `bob_sessions/<team>_bobcoin_usage.png`), which
+The total is the account usage figure (screenshot: `bob_sessions/invariant_bobcoin_usage.png`), which
 is the billed amount. Per-task values are the running totals shown in each Bob task header; they
 sum to 16.24 and do not reconcile with the account figure, so they are treated as relative
 per-task costs. Task 5 attempt 2 and Task 6 share one chat, whose final header value (1.32) is
