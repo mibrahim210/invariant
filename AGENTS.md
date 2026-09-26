@@ -6,6 +6,7 @@ builds deterministic commit-bound Validity Reports, and gates merges with a requ
 ## Layout (tool repository)
 
 - mcp-server/server.py - FastMCP entry; requires absolute --target-repo; `hello` smoke tool
+- mcp-server/proc.py - run_proc / run_cmd / log: the only subprocess and diagnostics helpers
 - mcp-server/analyzers/ - inspect_split, verify_overlap, coverage, run_tests
 - mcp-server/report/ - builder.py, status.py, schema.json
 - mcp-server/tests/ - fixtures/, test_binding.py, test_status_table.py, test_output_budget.py
@@ -31,8 +32,11 @@ builds deterministic commit-bound Validity Reports, and gates merges with a requ
 - Invalid partition -> blocked, never a zero-overlap pass.
 - History is informational; it never affects status.
 - Target code runs only in a subprocess in the target's own environment.
-- Every subprocess call passes stdin=subprocess.DEVNULL and a timeout; under the stdio
-  transport an inherited stdin can hang the server.
+- Start every subprocess through proc.run_proc or proc.run_cmd, never subprocess directly:
+  under the stdio transport an inherited stdin, a console window or a git prompt can hang
+  the server on Windows. Target code runs as `uv run --locked --directory <target> ...`.
+- Never print to stdout from server code (stdout is the MCP pipe); use proc.log.
+- Tool calls must finish well inside the 600 s MCP timeout; give each subprocess its own timeout.
 - Analyzer output: compact JSON < 2 KB, lists <= 10, example IDs <= 5.
   Set truncated: true only when content is omitted.
 - Never claim "compliant", "non-compliant", "safe" or "OK to merge".

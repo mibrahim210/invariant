@@ -11,15 +11,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import platform
 import subprocess
 import sys
-import tempfile
-import time
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
+
+from proc import LOG_PATH, log, run_cmd
 
 SERVER_VERSION = "0.1.0"
 ANALYZER_ROOT = Path(__file__).resolve().parents[1]  # the invariant repository
@@ -27,37 +26,6 @@ ANALYZER_ROOT = Path(__file__).resolve().parents[1]  # the invariant repository
 
 class BindingError(RuntimeError):
     pass
-
-
-SUBPROCESS_TIMEOUT_S = 30
-LOG_PATH = Path(os.environ.get("INVARIANT_MCP_LOG", Path(tempfile.gettempdir()) / "invariant-mcp.log"))
-
-
-def log(msg: str) -> None:
-    """Diagnostics go to a file outside both repositories; never to stdout (the MCP pipe)."""
-    try:
-        with open(LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(f"{time.strftime('%H:%M:%S')} pid={os.getpid()} {msg}\n")
-    except OSError:
-        pass
-
-
-def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int = SUBPROCESS_TIMEOUT_S) -> str:
-    """Every subprocess goes through here: no inherited stdin, no console window, no prompts."""
-    env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GIT_OPTIONAL_LOCKS="0")
-    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-    start = time.monotonic()
-    log(f"run start: {cmd[:4]}")
-    try:
-        out = subprocess.run(cmd, cwd=cwd, env=env, text=True, stdin=subprocess.DEVNULL,
-                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                             timeout=timeout, creationflags=flags, check=True).stdout
-        log(f"run ok {time.monotonic() - start:.2f}s")
-        return out
-    except Exception as exc:
-        log(f"run failed {time.monotonic() - start:.2f}s: {type(exc).__name__}")
-        raise
-
 
 def _git(repo: Path, *args: str) -> str:
     return run_cmd(["git", "-C", str(repo), *args]).strip()

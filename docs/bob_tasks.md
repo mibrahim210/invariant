@@ -1,7 +1,8 @@
 # Bob task prompts
 
-One task per step. Paste the prompt as written. Screenshot the task summary immediately as
-`bob_sessions/<team>_taskNN_<description>_summary.png` and record the coin cost below.
+One task per step. Paste the prompt as written.Save each task summary screenshot and its cost in `../bob_sessions_staging/` (see
+`docs/bob_evidence_capture_guide.md`). Fill the Actual column below only after Report B.
+Turn on Bob's MCP auto-approval: approval wait counts against the MCP timeout.
 If a task fails on setup or integration, stop: fix by hand and confirm with a zero-coin check.
 Do not open a second paid task to debug installation.
 
@@ -13,9 +14,9 @@ outside both repositories (for example `..\bob_sessions_staging\`) and copy them
 | Task | Workspace | Mode | Budget | Actual |
 |---|---|---|---|---|
 | 1 Smoke test | invariant-demo-nsclc | ML Reviewer | 2 | |
-| 2 Static analyzers | invariant | Code | 5 | |
-| 3 Execution analyzers | invariant | Code | 5 | |
-| 4 Report builder + status | invariant | Code | 4 (+ contingency, decide after Task 3) | |
+| 2 Static analyzers | invariant | Agent | 5 | |
+| 3 Execution analyzers | invariant | Agent | 5 | |
+| 4 Report builder + status | invariant | Agent | 4 (+ contingency, decide after Task 3) | |
 | 5 Review, Report A, fix | invariant-demo-nsclc | ML Reviewer | 5 | |
 | 6 Commit, fix PR, Report B | invariant-demo-nsclc | Agent | 2 | |
 
@@ -66,7 +67,8 @@ Run `uv run --locked pytest -q` in mcp-server. Final message <= 10 lines.
 ```
 Implement two execution MCP analyzers in @mcp-server/server.py, following @AGENTS.md.
 They run target code only in a subprocess, in the target's own environment:
-`uv run --locked --directory <target> python <runner> ...`, timeout 120 s.
+`uv run --locked --directory <target> python <runner> ...`, started only through
+proc.run_proc with a per-call timeout (runner 120 s, pytest 300 s).
 
 1. mcp-server/analyzers/verify_overlap.py -> tool `verify_split_overlap()`:
    Runner loads metadata (index = [target] row_id), sorts by group_key then slice order
