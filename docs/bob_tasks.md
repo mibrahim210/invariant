@@ -1,31 +1,88 @@
-# Bob task prompts
+# Bob task prompts and record
 
-One task per step. Paste the prompt as written.Save each task summary screenshot and its cost in `../bob_sessions_staging/` (see
-`docs/bob_evidence_capture_guide.md`). Fill the Actual column below only after Report B.
-Turn on Bob's MCP auto-approval: approval wait counts against the MCP timeout.
-If a task fails on setup or integration, stop: fix by hand and confirm with a zero-coin check.
-Do not open a second paid task to debug installation.
+One task per step. Each prompt below is the one actually used. Task summary screenshots and
+costs are in `bob_sessions/` (see `docs/bob_evidence_capture_guide.md`).
 
-Screenshots never go into either checkout while a report can be built: an untracked PNG makes
-the target (R1) or the analyzer (R2) dirty and the builder refuses. Save them to a staging folder
-outside both repositories (for example `..\bob_sessions_staging\`) and copy them into
-`invariant/bob_sessions/` in a separate commit only after Report B exists.
+## Operating rules learned during the build
 
-| Task | Workspace | Mode | Budget | Actual |
+- **MCP timeout is in milliseconds.** `.bob/mcp.json` uses `"timeout": 600000` (10 minutes).
+  With `600` (0.6 s) every tool that launches `uv` was abandoned by Bob and the server restarted,
+  even though the tool finished in 3-6 s. `install.py` writes 600000.
+- **Approvals.** In the per-task permission panel keep Read ticked and leave MCP, Edit and
+  Subagent unticked for review tasks: every analyzer call, file edit and subagent spawn is
+  approved by hand, and `build_report` (never in `alwaysAllow`) is always a visible approval.
+- **Call MCP tools one at a time.** The server handles one call at a time.
+- **Stop rule.** If a task fails on setup or integration, stop, fix by hand and confirm with a
+  zero-coin check (`mcp-server/scripts/check_mcp.py`, `call_tool.py`). No paid debugging tasks.
+- **Screenshots never go into either checkout while a report can be built.** An untracked file
+  makes the target (R1) or the analyzer (R2) dirty and the builder refuses. They were kept in
+  `../bob_sessions_staging/` and copied into `bob_sessions/` after Report B.
+- **Every Bob task was verified independently** against the real server and the demo repo with
+  expected results fixed in advance. Human fixes after each task are listed below and are in
+  separate commits.
+
+## Record
+
+| Task | Workspace | Mode | Budget | Task header value (Bobcoins) |
 |---|---|---|---|---|
-| 1 Smoke test | invariant-demo-nsclc | ML Reviewer | 2 | |
-| 2 Static analyzers | invariant | Agent | 5 | |
-| 3 Execution analyzers | invariant | Agent | 5 | |
-| 4 Report builder + status | invariant | Agent | 4 (+ contingency, decide after Task 3) | |
-| 5 Review, Report A, fix | invariant-demo-nsclc | ML Reviewer | 5 | |
-| 6 Commit, fix PR, Report B | invariant-demo-nsclc | Agent | 2 | |
+| 1 Smoke test | invariant-demo-nsclc | ML Reviewer | 2 | 0.133 (3 attempts: 0.044 + 0.044 + 0.045) |
+| 2 Static analyzers | invariant | Agent | 5 | 2.30 |
+| 3 Execution analyzers | invariant | Agent | 5 | 4.56 |
+| 4 Report builder + status | invariant | Agent | 4 (+ contingency) | 7.32 |
+| 5 Review, Report A, fix | invariant-demo-nsclc | ML Reviewer | 5 | 1.120 (attempt 1: 0.611; attempt 2: 0.509) |
+| 6 Fix PR, Report B | invariant-demo-nsclc | Agent | 2 | 0.811 (same chat as Task 5 attempt 2; chat total 1.32) |
+| **Total** | | | **23** | **9.52 of 40 (account usage)** |
+
+The total is the account usage figure (screenshot: `bob_sessions/<team>_bobcoin_usage.png`), which
+is the billed amount. Per-task values are the running totals shown in each Bob task header; they
+sum to 16.24 and do not reconcile with the account figure, so they are treated as relative
+per-task costs. Task 5 attempt 2 and Task 6 share one chat, whose final header value (1.32) is
+counted once; the intermediate snapshots in `bob_sessions/costs.txt` (0.843, 0.901, 1.02) are not
+added.
+
+### What happened, and the human fixes
+
+- **Task 1.** Attempts 1-2 timed out: `timeout: 120` meant 0.12 s, and approval waits counted
+  against it. Fixed by hand: subprocess stdin detached from the MCP pipe (`proc.py`), diagnostic
+  log, timeout raised. Attempt 3 passed: `hello` returned the demo head and analyzer commit.
+- **Task 2.** Bob's tests passed but three defects were found by the zero-coin checks and fixed by
+  hand: `inspect_split` looked for calls to `make_split` instead of the splitter calls inside it
+  (Bob had changed a test to accept `calls: []`); the guard detector did not follow same-file
+  helper functions; files saved with a UTF-8 BOM (Windows) were reported as unparsable.
+- **Task 3.** Bob's 19 unit tests passed while measuring the wrong quantity. Fixed by hand: overlap
+  now counts patients present in both sets, not shared rows; `split_seed = 0` no longer fell
+  through to seed 42; the runner accepted index-label outputs instead of crashing; invalid
+  partitions report `overlap_count: null`; pytest exit 2 without failures is `collection_error`;
+  error details keep the traceback tail. Bob's integration test asserted overlap 0 on the buggy
+  repo and was corrected to `> 0`.
+- **Task 4.** Fixed by hand after dry runs: per-analyzer result validation (`inspect_split` has no
+  `state`), SHA-256 over committed blob bytes (the protocol PDF is binary), protocol hash added to
+  the binding, invariants taken from `invariant.toml` instead of always `not_checked`,
+  `--expected-base` verified, a refusal returned as an answer instead of a crash, and realistic
+  analyzer stubs in the builder tests. Dry runs then gave `blocked` on the buggy head and
+  `no_findings` on a worktree with the fix.
+- **Task 5, attempt 1.** Tool replies were lost (timeout in ms); Bob continued to the fix without
+  receiving Report A. The builder had still written six valid `blocked` reports at `7595c00`;
+  they are kept as history. The demo split's docstring also described the bug, so it was made
+  neutral before attempt 2 (new PR head `873d009`).
+- **Task 5, attempt 2.** Report A `c7736d4e`: `blocked` at `873d009`, 166 patients in both sets,
+  two parallel explore subagents, fix and tests written. The guard detector did not recognize
+  Bob's assertion style (`train_patients.isdisjoint(test_patients)` on variables); the assertion
+  was routed through a `patient_overlap` helper by hand. Known limitation of the detector.
+- **Task 6.** Bob committed and pushed `555dd62`. The Create Pull Request workflow failed twice
+  ("Failed to load repository data"), so Bob opened PR #2 with `gh pr create`. Report B
+  `b82ed850`: `no_findings` at `555dd62`, overlap 0, 4 tests passed, guard recognized, history
+  retained.
+
+---
 
 ## Task 1 - smoke test (demo repo workspace, ML Reviewer mode)
 
 Before: `uv run --locked python --version` in mcp-server prints 3.12.x;
 `python install.py --target-repo ../invariant-demo-nsclc` succeeded; the zero-coin check
-`uv run --locked --directory ../invariant/mcp-server python scripts/check_mcp.py <ABSOLUTE mcp.json>` lists `hello`; the installed
-`.bob/custom_modes.yaml` and skill are committed in the demo repo, and Bob was reloaded.
+`uv run --locked --directory ../invariant/mcp-server python scripts/check_mcp.py <ABSOLUTE mcp.json>`
+lists `hello`; the installed `.bob/custom_modes.yaml` and skill are committed in the demo repo,
+and Bob was reloaded.
 
 ```
 Smoke test only. Call the invariant MCP tool `hello` once. Reply in at most 6 lines with:
@@ -33,9 +90,8 @@ target_repo, target_head_sha, target_clean, analyzer_head_sha, and whether the
 data-leakage skill is available. Do not read files, edit files or call other tools.
 ```
 
-Pass: the mode is selectable, the Modes tab shows it with read, mcp, skill, edit and subagent
-tools and the explore preset only, `hello` runs without an approval prompt, and
-target_head_sha equals `git rev-parse HEAD` in the demo repo.
+Pass: the mode is selectable with read, mcp, skill, edit and subagent tools and the explore
+preset only, and `target_head_sha` equals `git rev-parse HEAD` in the demo repo.
 
 ## Task 2 - static analyzers (invariant workspace, Agent mode)
 
@@ -68,6 +124,9 @@ mcp-server/tests/test_static_analyzers.py; create test_output_budget.py with a <
 for both tools. Run `uv run --locked pytest -q` in mcp-server. Final message <= 10 lines.
 ```
 
+Verified afterwards with `call_tool.py` on the demo repo: `train_test_split` at line 9 stratified
+on `label`; `no_recognized_guard` on the buggy tests; `recognized_guard` with the planned test.
+
 ## Task 3 - execution analyzers (invariant workspace, Agent mode)
 
 ```
@@ -96,12 +155,17 @@ proc.run_proc with a per-call timeout (runner 120 s, pytest 300 s).
    collection_error (missing files, exit 4, or no junit file), crash (timeout or other).
    No test output text.
 
-Never change a test's expected result to make it pass; fix the code or report the conflict.Unit-test partition validation and junit parsing with in-memory fixtures in mcp-server/tests/test_execution_analyzers.py (empty, duplicate, unknown, shared, omitted,
+Never change a test's expected result to make it pass; fix the code or report the conflict.
+Unit-test partition validation and junit parsing with in-memory fixtures in
+mcp-server/tests/test_execution_analyzers.py (empty, duplicate, unknown, shared, omitted,
 missing group ID; failed, error, zero collected, missing file). Add an integration test
 that runs only when INVARIANT_DEMO_REPO is set and asserts state valid and
 overlap_count > 0. Extend test_output_budget.py. Run `uv run --locked pytest -q` in
 mcp-server. Final message <= 10 lines.
 ```
+
+Verified afterwards: `verify_split_overlap` on the demo repo gives `valid`, overlap 166 of 166
+test patients, seed 0, matching the recorded seed-0 training run; the grouped split gives 0.
 
 ## Task 4 - report builder and status (invariant workspace, Agent mode)
 
@@ -140,14 +204,22 @@ no_findings, 1 on blocked or review_required, 2 on refusal.
 Run `uv run --locked pytest -q` in mcp-server. Final message <= 10 lines.
 ```
 
+Verified afterwards with two zero-coin dry runs into a temporary reports folder: the buggy PR
+head gave `blocked` (exit 1); a throwaway worktree with the grouped split and the regression
+test committed gave `no_findings` (exit 0). CI then reproduced `blocked` on the PR head.
+
 ## Task 5 - measured review, Report A, fix (demo repo workspace, ML Reviewer mode)
 
 Before: the Invariant CI check is required on `main` and red on the PR head; the demo repo is
-checked out on the PR branch (`feature/predict-cli`) with a clean working tree; Tasks 2-4 are
-merged in the `invariant` repo and its checkout is clean.
+checked out on the PR branch (`feature/predict-cli`) with a clean working tree; the `invariant`
+checkout is clean; `.bob/mcp.json` has `"timeout": 600000`; Bob was restarted.
+
+Prompt used for attempt 2 (attempt 1 lacked the second and third lines):
 
 ```
 Review the checked-out pull request head for ML correctness, following your mode's steps 0-7.
+Call MCP tools one at a time and wait for each result. If any tool errors or times out,
+stop and report it; do not edit any file.
 0. Read the protocol named in invariant.toml; list its invariants as checked / not_checked.
 1-3. Call inspect_split, verify_split_overlap and find_invariant_tests; report their results
    exactly as returned.
@@ -163,23 +235,45 @@ Review the checked-out pull request head for ML correctness, following your mode
 7. Stop without committing. Final message <= 10 lines.
 ```
 
-Screenshot the summary and the parallel-subagents panel. Record the cost as C.
+Result: Report A `c7736d4e` - `blocked` at `873d009`, overlap 166, analyzer `ee0bb7c`.
 
-Optional, by hand, for the video: show the new tests failing on the old splitter with
-`git worktree add ../nsclc-old HEAD`, copying tests/test_split_invariants.py into it and running
-`uv run --locked pytest -q tests/test_split_invariants.py` there. Remove the worktree afterwards.
+## Task 6 - fix PR and Report B (demo repo workspace, Agent mode, same chat as Task 5)
 
-## Task 6 - commit, fix PR, Report B (demo repo workspace, Agent mode)
+Commit and push:
 
 ```
 Create the branch fix/patient-independent-split from the current HEAD. Commit only
 demo_repo/splits.py and tests/test_split_invariants.py with the message
 "Use a patient-grouped split and add patient-independence regression tests".
 Push the branch and open a pull request into feature/predict-cli using Bob's pull request
-feature, describing the measured overlap from Report A and the fix. Then, on the committed
-state, call run_required_tests, verify_split_overlap and build_report, and report the
-status, head_sha and report path. Do not edit any other file. Final message <= 10 lines.
+feature. In the description, state the measured overlap from Report A (166 patients in both
+sets at 873d009, report run c7736d4e), the fix, and that the test's disjointness assertion
+was routed through a patient_overlap helper by hand so Invariant's guard detector recognizes it.
+Then, on the committed state, call run_required_tests, verify_split_overlap,
+find_invariant_tests and build_report one at a time, and report the status, head_sha and
+report path. Do not edit any file. Final message <= 10 lines.
 ```
 
-Report B must show `no_findings` at the fix commit, with the historical affected runs still in
-its history block. Screenshot the summary.
+The Create Pull Request workflow failed ("Failed to load repository data"), also after GitHub
+CLI login. Fallback used:
+
+```
+The Create Pull Request workflow cannot load the repository. Create the pull request with the
+GitHub CLI instead. Run exactly one command:
+gh pr create --base feature/predict-cli --head fix/patient-independent-split --title "Use a patient-grouped split and add patient-independence regression tests" --body "<description as above>"
+Do not write any file, commit or push. Report the PR URL.
+```
+
+Report B:
+
+```
+The fix is committed and the pull request is open. On the committed state, call
+run_required_tests, verify_split_overlap, find_invariant_tests and build_report one at a time.
+For build_report, explain what changed since Report A (run c7736d4e) and why the checks now pass.
+Report the status, head_sha and report path. Do not edit any file. Final message <= 10 lines.
+```
+
+Result: PR #2 green; Report B `b82ed850` - `no_findings` at `555dd62`, overlap 0, 4 tests passed,
+guard recognized, 11 historical affected runs retained. PR #2 and PR #1 were then merged; PR #3,
+which restores the row-level split, was blocked by the required check (overlap 166, two
+regression tests failing) and closed without merging.

@@ -1,0 +1,143 @@
+{
+  "schema_version": "1.0",
+  "run_id": "b5bbafe0257645dbb2cfa0dfd2b9307e",
+  "status": "blocked",
+  "binding": {
+    "target_repo": "C:/Users/mdibr/Desktop/LabLab/IBM Bob Hackathon/ibm-bob2.0-hackathon-2026/invariant-demo-nsclc",
+    "target_repo_name": "invariant-demo-nsclc",
+    "head_sha": "7595c00607d17b98d9b2aace5879fcc9a65efdd4",
+    "base_sha": "7314aad4193a94a13b18df1b02b1b4921d1f3377",
+    "base_sha_source": "invariant.toml",
+    "hashes": {
+      "invariant.toml": "017d737163f27bdf72eab7b1cebd43f048eb872de298ade3cb97ff33e673128a",
+      "configs/data_generation.json": "5d9eb59028f68955ca7a02b12d9453c9ad55caa461b4863aca27d8139f0015e5",
+      "data/image_manifest.json": "327ce4868f05975c99e8ed996afa9a410f92bb5e70d06c16d72f721175cc0568",
+      "docs/study_protocol.pdf": "6559268288013181fbe47f616c70f6b03ca71ba66df9ee2cc6317be422ad4473",
+      "data/metadata.csv": "aff30de03f8c87ca750c1752678069f1c3cd33d06703ae86c5c9e5ff2815dce0"
+    },
+    "analyzer_commit": "ee0bb7c880483419e04895ac762119d5c0f6ed07",
+    "required_checks": [
+      "verify_split_overlap",
+      "regression_tests",
+      "find_invariant_tests",
+      "inspect_split"
+    ],
+    "completed_checks": [
+      "verify_split_overlap",
+      "regression_tests",
+      "find_invariant_tests",
+      "inspect_split"
+    ]
+  },
+  "checks": {
+    "verify_split_overlap": {
+      "contribution": "blocked",
+      "summary": "state=valid overlap_count=166",
+      "result": {
+        "state": "valid",
+        "partition_errors": [],
+        "overlap_count": 166,
+        "overlap_examples": [
+          "NSCLC_P001",
+          "NSCLC_P002",
+          "NSCLC_P003",
+          "NSCLC_P004",
+          "NSCLC_P005"
+        ],
+        "train_group_count": 200,
+        "test_group_count": 166,
+        "rows_partitioned": 1600,
+        "split_seed": 0
+      }
+    },
+    "regression_tests": {
+      "contribution": "review_required",
+      "summary": "error: configured test paths not found: ['tests/test_split_invariants.py']",
+      "result": {
+        "state": "collection_error",
+        "error": "configured test paths not found: ['tests/test_split_invariants.py']",
+        "passed": 0,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "collected": 0
+      }
+    },
+    "find_invariant_tests": {
+      "contribution": "review_required",
+      "summary": "state=no_recognized_guard",
+      "result": {
+        "state": "no_recognized_guard",
+        "evidence": [],
+        "split_function": "demo_repo.splits:make_split",
+        "group_key": "patient_id",
+        "test_files_scanned": 5
+      }
+    },
+    "inspect_split": {
+      "contribution": "none",
+      "summary": "risk_indicators=['row_level_split_with_group_key_in_metadata']",
+      "result": {
+        "file": "demo_repo/splits.py",
+        "split_function": "demo_repo.splits:make_split",
+        "group_key": "patient_id",
+        "function_line": 4,
+        "calls": [
+          {
+            "line": 9,
+            "call": "train_test_split",
+            "stratify": "label"
+          }
+        ],
+        "group_aware": false,
+        "stratify_col": "label",
+        "identity_columns": [
+          "slice_id",
+          "patient_id",
+          "study_id"
+        ],
+        "risk_indicators": [
+          "row_level_split_with_group_key_in_metadata"
+        ]
+      }
+    }
+  },
+  "invariants": {
+    "patient_independence": {
+      "status": "checked"
+    },
+    "train_only_fitting": {
+      "status": "not_checked"
+    },
+    "inference_consistency": {
+      "status": "not_checked"
+    }
+  },
+  "history": {
+    "confirmed_affected": [
+      "14501090193f408ab4e233a21a90b829",
+      "25c6042ec0024cee9bdb5e3277f842c9",
+      "2e570326403f4ccd9a124257fdd3e0c2",
+      "5aac48aa31594688b995602809dad6ea",
+      "6f4dcb0f1a414dfcb2164e143b8de84d",
+      "76b0d2dcbafc49d5ab6475efd794ed13",
+      "8e6deb346cc54eadb8e171d9c591d8bb",
+      "9b62a7496cf64ada986747b3841e42f4",
+      "a50d4322067f44d8940388ac30184164",
+      "dc5f11d6a819434d811cf23573ad54ac"
+    ],
+    "potentially_affected": [],
+    "confirmed_count": 11,
+    "potentially_count": 0,
+    "cpu_time_seconds": 7.906,
+    "wall_time_seconds": 9.364,
+    "timing_boundary_values": [
+      null,
+      "split + partition validation + feature preparation (array load and block means) + fit + prediction + evaluation; excludes image-manifest verification, MLflow logging and manifest writing"
+    ],
+    "missing_timing_count": 0,
+    "truncated": true
+  },
+  "explanation_md": "## Findings\n\n`verify_split_overlap` timed out on all three attempts (data arrays likely not generated at this commit), so the overlap count could not be measured directly.  \nStatic analysis (`inspect_split`) confirms the root cause: `make_split` calls `sklearn.model_selection.train_test_split` at the **row level** (`df.index.to_numpy()`).  \nBecause each patient contributes 8 slices, row-level splitting scatters those slices between train and test, placing the same `patient_id` in both partitions.  \nThe source file (`demo_repo/splits.py` line 9) has the docstring \"**Buggy baseline: \u2026 allows patient IDs to cross train/test splits**\" \u2014 the bug is self-documented.\n\n**Risk indicators from inspect_split**  \n- `group_aware: false` \u2014 the splitter has no knowledge of `patient_id`  \n- `row_level_split_with_group_key_in_metadata` \u2014 rows, not patients, are the split unit  \n- `stratify_col: label` \u2014 label-stratification is applied at the row level, not at the patient level\n\n**INV-1 violation (patient_independence)**  \nProtocol \u00a74 requires *\"No patient_id may appear in both the training set and the test set.\"*  \nRow-level splitting with 8 slices per patient guarantees that patients appear in both sets for any reasonable `test_size`.\n\n**find_invariant_tests**  \nState: `no_recognized_guard` \u2014 none of the 5 scanned test files contains the required patient-disjointness assertion.\n\n**Remaining protocol invariants not checked by this tool**  \n- INV-2 `train_only_fitting` \u2014 not checked  \n- INV-3 `inference_consistency` \u2014 not checked",
+  "remediation_md": "## Remediation\n\nReplace the row-level `train_test_split` in `demo_repo/splits.py` with `GroupShuffleSplit` keyed on `patient_id`.  \nThe function signature and return type (index labels) are unchanged; only the splitting strategy changes.\n\n```python\nfrom sklearn.model_selection import GroupShuffleSplit\n\ndef make_split(df, seed=0, test_size=0.2):\n    gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)\n    train_pos, test_pos = next(gss.split(df, groups=df[\"patient_id\"]))\n    return df.index[train_pos], df.index[test_pos]\n```\n\nAdd `tests/test_split_invariants.py` with:\n1. A fixed fixture of 20 patients \u00d7 3 slices each.\n2. A domain test asserting no `patient_id` appears in both train and test index sets.\n3. A Hypothesis property test over varied seeds and test sizes confirming the same invariant."
+}

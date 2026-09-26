@@ -1,0 +1,148 @@
+{
+  "comparison_id": "c7736d4e_b82ed850",
+  "report_a": {
+    "report_path": "reports/invariant-demo-nsclc/873d00942f38b9c92681d9f430c352fcfc7cba8a/c7736d4e6a814b9182d5fc0904d0d266/validity-report.json",
+    "run_id": "c7736d4e6a814b9182d5fc0904d0d266",
+    "status": "blocked",
+    "head_sha": "873d00942f38b9c92681d9f430c352fcfc7cba8a",
+    "base_sha": "e739727886a3dd69a2c2733a97877754a0cfee28",
+    "analyzer_commit": "ee0bb7c880483419e04895ac762119d5c0f6ed07",
+    "overlap_count": 166,
+    "checks": {
+      "verify_split_overlap": {
+        "contribution": "blocked",
+        "summary": "state=valid overlap_count=166"
+      },
+      "regression_tests": {
+        "contribution": "review_required",
+        "summary": "error: configured test paths not found: ['tests/test_split_invariants.py']"
+      },
+      "find_invariant_tests": {
+        "contribution": "review_required",
+        "summary": "state=no_recognized_guard"
+      },
+      "inspect_split": {
+        "contribution": "none",
+        "summary": "risk_indicators=['row_level_split_with_group_key_in_metadata']"
+      }
+    },
+    "history_confirmed_affected": 11
+  },
+  "report_b": {
+    "report_path": "reports/invariant-demo-nsclc/555dd62b8d1b9beebdaf67a2eb468c4a37094ee1/b82ed8505f6a4c408660223e1b86bfe0/validity-report.json",
+    "run_id": "b82ed8505f6a4c408660223e1b86bfe0",
+    "status": "no_findings",
+    "head_sha": "555dd62b8d1b9beebdaf67a2eb468c4a37094ee1",
+    "base_sha": "e739727886a3dd69a2c2733a97877754a0cfee28",
+    "analyzer_commit": "ee0bb7c880483419e04895ac762119d5c0f6ed07",
+    "overlap_count": 0,
+    "checks": {
+      "verify_split_overlap": {
+        "contribution": "none",
+        "summary": "state=valid overlap_count=0"
+      },
+      "regression_tests": {
+        "contribution": "none",
+        "summary": "state=passed passed=4 failed=0 collected=4"
+      },
+      "find_invariant_tests": {
+        "contribution": "none",
+        "summary": "state=recognized_guard"
+      },
+      "inspect_split": {
+        "contribution": "none",
+        "summary": "risk_indicators=[]"
+      }
+    },
+    "history_confirmed_affected": 11
+  },
+  "patient_overlap": {
+    "report_a": 166,
+    "report_b": 0
+  },
+  "auc": {
+    "note": "Patient-level ROC AUC from committed training sweeps. The leaky sweep uses the row-level split; the grouped sweep uses the patient-grouped split. The two splits hold out different patients, so the difference describes this synthetic benchmark only.",
+    "leaky": {
+      "sweep_id": "20260926T005150-302ddc",
+      "split_function": "demo_repo.splits:make_split",
+      "code_git_sha": "42079a05a61ae122c9c1110b16061288c32fdcc9",
+      "python": "3.12.14",
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "run_ids": [
+        "e3092eaa3a0a4aa29e1d1b6ed0d3fe86",
+        "dc5f11d6a819434d811cf23573ad54ac",
+        "a50d4322067f44d8940388ac30184164",
+        "2e570326403f4ccd9a124257fdd3e0c2",
+        "8e6deb346cc54eadb8e171d9c591d8bb"
+      ],
+      "overlap_count": [
+        166,
+        172,
+        169,
+        167,
+        166
+      ],
+      "patient_auc": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "patient_auc_mean": 1.0,
+      "patient_auc_population_std": 0.0,
+      "defined": "5/5"
+    },
+    "grouped": {
+      "sweep_id": "20260926T005219-a23ab5",
+      "split_function": "reference_splits:grouped_split",
+      "code_git_sha": "42079a05a61ae122c9c1110b16061288c32fdcc9",
+      "python": "3.12.14",
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "run_ids": [
+        "865ba31ba63d4db4bfffce44e1455ff0",
+        "12974038029c44c4ae69143e1929740e",
+        "b2cc09ce91014e81a0d02f0258840be4",
+        "da90a7c4d8984540998e55460f55aa6b",
+        "f83ca380ca614dedb8cf7e11ea0cd77e"
+      ],
+      "overlap_count": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "patient_auc": [
+        0.6628787878787878,
+        0.5877192982456141,
+        0.5438596491228069,
+        0.6346666666666667,
+        0.6534526854219949
+      ],
+      "patient_auc_mean": 0.6165154174671741,
+      "patient_auc_population_std": 0.044612708690070495,
+      "defined": "5/5"
+    },
+    "per_seed_difference_leaky_minus_grouped": [
+      0.33712121212121215,
+      0.4122807017543859,
+      0.45614035087719307,
+      0.3653333333333333,
+      0.34654731457800514
+    ],
+    "mean_difference": 0.3834845825328259
+  }
+}
