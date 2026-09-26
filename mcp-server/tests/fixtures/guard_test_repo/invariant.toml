@@ -1,0 +1,4 @@
+[target]
+split_function = "demo_repo.splits:make_split"
+group_key = "patient_id"
+metadata = "data/meta.csv"

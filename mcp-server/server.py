@@ -19,6 +19,8 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from proc import LOG_PATH, log, run_cmd
+import analyzers.inspect_split as _inspect_split
+import analyzers.coverage as _coverage
 
 SERVER_VERSION = "0.1.0"
 ANALYZER_ROOT = Path(__file__).resolve().parents[1]  # the invariant repository
@@ -91,8 +93,29 @@ def build_server(target: Path) -> FastMCP:
         log("hello returning")
         return payload
 
-    # Tasks 2-4 register: inspect_split, verify_split_overlap, find_invariant_tests,
-    # run_required_tests, build_report. Each receives `target` from this closure.
+    @mcp.tool()
+    def inspect_split() -> dict:
+        """Static analysis of the configured split function: call sites, group-awareness,
+        stratify column, identity columns, and risk indicators. Reads only the bound
+        target's invariant.toml and the resolved split module; never executes target code."""
+        log("inspect_split called")
+        result = _inspect_split.run(target)
+        log("inspect_split returning")
+        return result
+
+    @mcp.tool()
+    def find_invariant_tests() -> dict:
+        """Scan the bound target's tests/**/*.py for a recognised group-key disjointness
+        guard: a test that calls the configured split function and asserts an empty
+        intersection of sets built from the group_key column of both outputs.
+        Returns state (recognized_guard | no_recognized_guard | unknown) and evidence."""
+        log("find_invariant_tests called")
+        result = _coverage.run(target)
+        log("find_invariant_tests returning")
+        return result
+
+    # Tasks 3-4 register: verify_split_overlap, run_required_tests, build_report.
+    # Each receives `target` from this closure.
     return mcp
 
 
