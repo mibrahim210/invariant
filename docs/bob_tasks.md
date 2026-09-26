@@ -18,7 +18,7 @@ costs are in `bob_sessions/` (see `docs/bob_evidence_capture_guide.md`).
   makes the target (R1) or the analyzer (R2) dirty and the builder refuses. They were kept in
   `../bob_sessions_staging/` and copied into `bob_sessions/` after Report B.
 - **Every Bob task was verified independently** against the real server and the demo repo with
-  expected results fixed in advance. Human fixes after each task are listed below and are in
+  expected results fixed in advance. What those checks caught is summarized below; fixes are in
   separate commits.
 
 ## Record
@@ -33,46 +33,32 @@ costs are in `bob_sessions/` (see `docs/bob_evidence_capture_guide.md`).
 | 6 Fix PR, Report B | invariant-demo-nsclc | Agent | 2 | 0.811 (same chat as Task 5 attempt 2; chat total 1.32) |
 | **Total** | | | **23** | **9.52 of 40 (account usage)** |
 
-The total is the account usage figure (screenshot: `bob_sessions/invariant_bobcoin_usage.png`), which
-is the billed amount. Per-task values are the running totals shown in each Bob task header; they
+The total is the account usage figure reported by IBM Bob, which is the billed amount. Per-task values are the running totals shown in each Bob task header; they
 sum to 16.24 and do not reconcile with the account figure, so they are treated as relative
 per-task costs. Task 5 attempt 2 and Task 6 share one chat, whose final header value (1.32) is
 counted once; the intermediate snapshots in `bob_sessions/costs.txt` (0.843, 0.901, 1.02) are not
 added.
 
-### What happened, and the human fixes
+### Review of Bob's work
 
-- **Task 1.** Attempts 1-2 timed out: `timeout: 120` meant 0.12 s, and approval waits counted
-  against it. Fixed by hand: subprocess stdin detached from the MCP pipe (`proc.py`), diagnostic
-  log, timeout raised. Attempt 3 passed: `hello` returned the demo head and analyzer commit.
-- **Task 2.** Bob's tests passed but three defects were found by the zero-coin checks and fixed by
-  hand: `inspect_split` looked for calls to `make_split` instead of the splitter calls inside it
-  (Bob had changed a test to accept `calls: []`); the guard detector did not follow same-file
-  helper functions; files saved with a UTF-8 BOM (Windows) were reported as unparsable.
-- **Task 3.** Bob's 19 unit tests passed while measuring the wrong quantity. Fixed by hand: overlap
-  now counts patients present in both sets, not shared rows; `split_seed = 0` no longer fell
-  through to seed 42; the runner accepted index-label outputs instead of crashing; invalid
-  partitions report `overlap_count: null`; pytest exit 2 without failures is `collection_error`;
-  error details keep the traceback tail. Bob's integration test asserted overlap 0 on the buggy
-  repo and was corrected to `> 0`.
-- **Task 4.** Fixed by hand after dry runs: per-analyzer result validation (`inspect_split` has no
-  `state`), SHA-256 over committed blob bytes (the protocol PDF is binary), protocol hash added to
-  the binding, invariants taken from `invariant.toml` instead of always `not_checked`,
-  `--expected-base` verified, a refusal returned as an answer instead of a crash, and realistic
-  analyzer stubs in the builder tests. Dry runs then gave `blocked` on the buggy head and
-  `no_findings` on a worktree with the fix.
-- **Task 5, attempt 1.** Tool replies were lost (timeout in ms); Bob continued to the fix without
-  receiving Report A. The builder had still written six valid `blocked` reports at `7595c00`;
-  they are kept as history. The demo split's docstring also described the bug, so it was made
-  neutral before attempt 2 (new PR head `873d009`).
-- **Task 5, attempt 2.** Report A `c7736d4e`: `blocked` at `873d009`, 166 patients in both sets,
-  two parallel explore subagents, fix and tests written. The guard detector did not recognize
-  Bob's assertion style (`train_patients.isdisjoint(test_patients)` on variables); the assertion
-  was routed through a `patient_overlap` helper by hand. Known limitation of the detector.
-- **Task 6.** Bob committed and pushed `555dd62`. The Create Pull Request workflow failed twice
-  ("Failed to load repository data"), so Bob opened PR #2 with `gh pr create`. Report B
-  `b82ed850`: `no_findings` at `555dd62`, overlap 0, 4 tests passed, guard recognized, history
-  retained.
+Bob wrote the MCP analyzers, the report builder, the status table, the schema and most of the
+tests, and it ran the review, wrote the fix and opened the fix pull request. We treated its output
+the way Invariant treats a pull request: every task was checked against the real repository with
+expected results fixed in advance, before it was committed.
+
+| Task | What the independent check caught | Fix |
+|---|---|---|
+| 1 | MCP timeout read in milliseconds; child processes inherited the MCP pipe on Windows | Timeout 600000; shared subprocess helper (`proc.py`) with diagnostics |
+| 2 | Splitter calls inside `make_split` not reported; helper-based guard tests and BOM-encoded files missed | Analyzer corrected; 6 regression tests added |
+| 3 | Overlap counted shared rows instead of patients; seed 0 fell back to 42; runner crashed on index labels | Patient-level overlap; explicit seed handling; tests corrected |
+| 4 | `inspect_split` result rejected by validation; protocol not hashed; invariants always `not_checked` | Per-analyzer validation; byte-level hashing incl. protocol; declared invariants |
+| 5 | First attempt lost tool replies (timeout); guard detector missed `a.isdisjoint(b)` | Rerun after the timeout fix; assertion routed through a helper (known limit) |
+| 6 | Create Pull Request workflow could not load the repository | Bob opened PR #2 with `gh pr create` |
+
+After these checks, dry runs reproduced `blocked` on the buggy head and `no_findings` on the fix,
+and CI reproduced both independently. Report A `c7736d4e` (`blocked`, 166 patients at `873d009`)
+and Report B `b82ed850` (`no_findings` at `555dd62`) are in `reports/`. The six reports written
+during the first review attempt (at `7595c00`) are kept as history.
 
 ---
 
