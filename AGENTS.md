@@ -31,6 +31,8 @@ builds deterministic commit-bound Validity Reports, and gates merges with a requ
 - Invalid partition -> blocked, never a zero-overlap pass.
 - History is informational; it never affects status.
 - Target code runs only in a subprocess in the target's own environment.
+- Every subprocess call passes stdin=subprocess.DEVNULL and a timeout; under the stdio
+  transport an inherited stdin can hang the server.
 - Analyzer output: compact JSON < 2 KB, lists <= 10, example IDs <= 5.
   Set truncated: true only when content is omitted.
 - Never claim "compliant", "non-compliant", "safe" or "OK to merge".

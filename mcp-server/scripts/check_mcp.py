@@ -15,8 +15,13 @@ cfg = json.loads(cfg_path.read_text(encoding="utf-8"))["mcpServers"]["invariant"
 async def main():
     async with stdio_client(StdioServerParameters(command=cfg["command"], args=cfg["args"])) as (r, w):
         async with ClientSession(r, w) as s:
-            await s.initialize()
-            print([t.name for t in (await s.list_tools()).tools])
-            res = await s.call_tool("hello", {})
-            print(res.content[0].text[:200])
+            await asyncio.wait_for(s.initialize(), 60)
+            print([t.name for t in (await asyncio.wait_for(s.list_tools(), 30)).tools])
+            try:
+                res = await asyncio.wait_for(s.call_tool("hello", {}), 45)
+            except asyncio.TimeoutError:
+                sys.exit("check_mcp: hello did not return within 45 s (server hang)")
+            if res.isError:
+                sys.exit(f"check_mcp: hello returned an error: {res.content}")
+            print(res.content[0].text)
 asyncio.run(main())

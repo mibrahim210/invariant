@@ -26,9 +26,15 @@ class BindingError(RuntimeError):
     pass
 
 
+SUBPROCESS_TIMEOUT_S = 30
+
+
 def _git(repo: Path, *args: str) -> str:
+    # stdin=DEVNULL is required: under the stdio transport the server's stdin is the MCP
+    # pipe, and a child that inherits it can block forever (observed on Windows).
     return subprocess.check_output(["git", "-C", str(repo), *args], text=True,
-                                   stderr=subprocess.DEVNULL).strip()
+                                   stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                   timeout=SUBPROCESS_TIMEOUT_S).strip()
 
 
 def _sha256(path: Path) -> str:
@@ -45,7 +51,7 @@ def bind_target(raw: str) -> Path:
         raise BindingError(f"target does not exist: {path}")
     try:
         top = Path(_git(path, "rev-parse", "--show-toplevel")).resolve()
-    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as exc:
         raise BindingError(f"target is not a git repository: {path}") from exc
     if top != path:
         raise BindingError(f"target must be the repository root; git top-level is {top}")
@@ -58,7 +64,7 @@ def repo_state(repo: Path) -> dict:
     try:
         return {"head_sha": _git(repo, "rev-parse", "--verify", "HEAD"),
                 "clean": _git(repo, "status", "--porcelain") == ""}
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
         return {"head_sha": None, "clean": None}
 
 
