@@ -37,7 +37,7 @@ Pass: the mode is selectable, the Modes tab shows it with read, mcp, skill, edit
 tools and the explore preset only, `hello` runs without an approval prompt, and
 target_head_sha equals `git rev-parse HEAD` in the demo repo.
 
-## Task 2 - static analyzers (invariant workspace, Code mode)
+## Task 2 - static analyzers (invariant workspace, Agent mode)
 
 ```
 Implement two static MCP analyzers in @mcp-server/server.py, following @AGENTS.md.
@@ -62,7 +62,7 @@ mcp-server/tests/test_static_analyzers.py plus a size check in test_output_budge
 Run `uv run --locked pytest -q` in mcp-server. Final message <= 10 lines.
 ```
 
-## Task 3 - execution analyzers (invariant workspace, Code mode)
+## Task 3 - execution analyzers (invariant workspace, Agent mode)
 
 ```
 Implement two execution MCP analyzers in @mcp-server/server.py, following @AGENTS.md.
@@ -90,7 +90,7 @@ when INVARIANT_DEMO_REPO is set. Extend test_output_budget.py. Run the tests.
 Final message <= 10 lines.
 ```
 
-## Task 4 - report builder and status (invariant workspace, Code mode)
+## Task 4 - report builder and status (invariant workspace, Agent mode)
 
 ```
 Implement mcp-server/report/status.py, builder.py and schema.json and the MCP tool
