@@ -96,8 +96,7 @@ proc.run_proc with a per-call timeout (runner 120 s, pytest 300 s).
    collection_error (missing files, exit 4, or no junit file), crash (timeout or other).
    No test output text.
 
-Unit-test partition validation and junit parsing with in-memory fixtures in
-mcp-server/tests/test_execution_analyzers.py (empty, duplicate, unknown, shared, omitted,
+Never change a test's expected result to make it pass; fix the code or report the conflict.Unit-test partition validation and junit parsing with in-memory fixtures in mcp-server/tests/test_execution_analyzers.py (empty, duplicate, unknown, shared, omitted,
 missing group ID; failed, error, zero collected, missing file). Add an integration test
 that runs only when INVARIANT_DEMO_REPO is set and asserts state valid and
 overlap_count > 0. Extend test_output_budget.py. Run `uv run --locked pytest -q` in
