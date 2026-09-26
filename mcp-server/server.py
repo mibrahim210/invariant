@@ -21,6 +21,8 @@ from mcp.server.fastmcp import FastMCP
 from proc import LOG_PATH, log, run_cmd
 import analyzers.inspect_split as _inspect_split
 import analyzers.coverage as _coverage
+import analyzers.verify_overlap as _verify_overlap
+import analyzers.run_tests as _run_tests
 
 SERVER_VERSION = "0.1.0"
 ANALYZER_ROOT = Path(__file__).resolve().parents[1]  # the invariant repository
@@ -114,8 +116,29 @@ def build_server(target: Path) -> FastMCP:
         log("find_invariant_tests returning")
         return result
 
-    # Tasks 3-4 register: verify_split_overlap, run_required_tests, build_report.
-    # Each receives `target` from this closure.
+    @mcp.tool()
+    def verify_split_overlap() -> dict:
+        """Execute the configured split function inside the target's own Python environment
+        and validate the partition contract: unique row IDs, non-missing group IDs, both
+        sets non-empty, no unknown/duplicate IDs, no shared rows, union covers every row.
+        Returns state (valid | invalid_partition | error), partition_errors, overlap_count,
+        train/test group counts and up to 5 example group IDs."""
+        log("verify_split_overlap called")
+        result = _verify_overlap.run(target)
+        log("verify_split_overlap returning")
+        return result
+
+    @mcp.tool()
+    def run_required_tests() -> dict:
+        """Run the regression tests listed under [checks] regression_tests in the target's
+        own Python environment via pytest. Returns state (passed | failed | no_tests |
+        collection_error | crash) and passed/failed/errors/skipped/collected counts."""
+        log("run_required_tests called")
+        result = _run_tests.run(target)
+        log("run_required_tests returning")
+        return result
+
+    # Task 5: build_report. Receives `target` from this closure.
     return mcp
 
 
